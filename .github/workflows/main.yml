@@ -8,7 +8,6 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   build-and-test:
@@ -35,6 +34,11 @@ jobs:
     - name: Run Tests
       run: |
         python -m unittest discover -s . -p "*test*.py" || true
+
+    - name: Convert Repository Name to Lowercase
+      id: string
+      run: |
+        echo "IMAGE_NAME=$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
     - name: Log in to GitHub Container Registry
       if: github.event_name != 'pull_request'
