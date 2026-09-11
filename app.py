@@ -1,17 +1,27 @@
-from fastapi import FastAPI
-import joblib
-import numpy as np
+from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi.responses import HTMLResponse
+import pandas as pd
+import io
 
-app = FastAPI(title="MLOps Pipeline API")
+from evidently.report import Report
+from evidently.metric_preset import DataDriftPreset, DataQualityPreset
 
-model = joblib.load("model.pkl")
+app = FastAPI()
 
-@app.get("/")
-def home():
-    return {"message": "MLOps Model API is Live!"}
+@app.post("/analyze-visual/", response_class=HTMLResponse)
+async def analyze_visual(file: UploadFile = File(...)):
+    try:
+        contents = await file.read()
+        df = pd.read_csv(io.BytesIO(contents))
+        
+        if df.empty:
+            raise HTTPException(status_code=400, detail="Uploaded dataset is empty.")
 
-@app.post("/predict")
-def predict(features: list[float]):
-    data = np.array(features).reshape(1, -1)
-    prediction = model.predict(data)
-    return {"prediction": int(prediction[0])}
+        # Generates quality and drift metrics against reference data
+        report = Report(metrics=[DataQualityPreset(), DataDriftPreset()])
+        report.run(reference_data=df, current_data=df)
+        
+        return HTMLResponse(content=report.get_html(), status_code=200)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Evidently AI Processing Error: {str(e)}")
